@@ -6,7 +6,7 @@
            , MultiParamTypeClasses      -- For the AncestorRegion class.
            , UndecidableInstances       -- For the AncestorRegion instances.
            , FlexibleInstances          -- ,,          ,,          ,,
-           , OverlappingInstances       -- ,,          ,,          ,,
+           , DataKinds                  -- ,,          ,,          ,,
            , TypeFamilies               -- For the RegionIOControl class.
   #-}
 
@@ -71,7 +71,7 @@ module Control.Monad.Trans.Region.Internal
 --------------------------------------------------------------------------------
 
 -- from base:
-import Prelude             ( (+), (-) )
+import Prelude             ( (+), (-), Bool (False, True) )
 import Control.Applicative ( Applicative, Alternative )
 import Control.Monad       ( Monad, return, when, forM_, MonadPlus, (>>=) )
 import Control.Monad.Fix   ( MonadFix )
@@ -312,26 +312,28 @@ is satisfied if and only if @region@ is a sequence of zero or more \"@'RegionT' 
 (with varying @s@) applied to @parent@, in other words, if @region@ is an (improper)
 nested subregion of @parent@.
 
-The class constraint @InternalAncestorRegion parent region@ serves two purposes. First, the
-instances of @InternalAncestorRegion@ do the type-level recursion that implements
-the relation specified above. Second, since it is not exported, user code cannot
-add new instances of 'AncestorRegion' (as these would have to be made instances of
-@InternalAncestorRegion@, too), effectively turning it into a /closed class/.
+The closed type familiy @InternalAncestorRegion parent region@ serves two purposes.
+First, @InternalAncestorRegion@ do the type-level recursion that implements
+the relation specified above. Second, since it is closed, user code cannot
+add new instances of 'AncestorRegion' (as these would have to pass constraints
+set by @InternalAncestorRegion@), effectively turning it into a /closed class/.
 -}
 
--- The implementation uses type-level recursion, so it is no surprise we need
--- UndecidableInstances.
+class    (InternalAncestorRegion parent region ~ 'True) => AncestorRegion parent region
+instance (InternalAncestorRegion parent region ~ 'True) => AncestorRegion parent region
 
-class    (InternalAncestorRegion parent region) => AncestorRegion parent region
-instance (InternalAncestorRegion parent region) => AncestorRegion parent region
-
-class InternalAncestorRegion (parent :: * -> *) (region :: * -> *)
-
-instance InternalAncestorRegion (RegionT s m) (RegionT s m)
-
-instance (InternalAncestorRegion parent            region) =>
-          InternalAncestorRegion parent (RegionT s region)
-
+type family InternalAncestorRegion (parent :: * -> *) (region :: * -> *) :: Bool where
+  -- same region
+  InternalAncestorRegion (RegionT s m) (RegionT s m) = 'True
+  -- Root Region is ancestor to any region
+  InternalAncestorRegion RootRegion    (RegionT s m) = 'True
+  -- Local Regions
+  InternalAncestorRegion (LocalRegion sf s)    (RegionT (Local s) m) = 'True
+  InternalAncestorRegion (RegionT        s  m) (RegionT (Local s) m) = 'True
+  InternalAncestorRegion (RegionT (Local s) m) (RegionT        s  m) = 'True
+  -- type level recursion
+  InternalAncestorRegion (RegionT s m) region        = InternalAncestorRegion m region
+  InternalAncestorRegion _ _ = 'False
 
 --------------------------------------------------------------------------------
 -- * The root region
@@ -347,7 +349,7 @@ doesn't point to any allocated memory so doesn't need to be freed.
 -}
 data RootRegion a
 
-instance InternalAncestorRegion RootRegion (RegionT s m)
+-- instance InternalAncestorRegion RootRegion (RegionT s m)
 
 
 --------------------------------------------------------------------------------
@@ -384,11 +386,11 @@ outside that region (@RegionT s@) and visa versa
 -}
 data Local s
 
-instance InternalAncestorRegion (LocalRegion sf s) (RegionT (Local s) m)
+-- instance InternalAncestorRegion (LocalRegion sf s) (RegionT (Local s) m)
 
-instance InternalAncestorRegion (RegionT        s  m) (RegionT (Local s) m)
-instance InternalAncestorRegion (RegionT (Local s) m) (RegionT        s  m)
-
+-- instance InternalAncestorRegion (RegionT        s  m) (RegionT (Local s) m)
+-- instance InternalAncestorRegion (RegionT (Local s) m) (RegionT        s  m)
+  
 {-|
 Convert a 'Local' region to a regular region.
 
