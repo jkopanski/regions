@@ -40,7 +40,7 @@ source-repository head
 
 Library
   GHC-Options: -Wall
-  build-depends: base                      >= 4.7   && < 4.12
+  build-depends: base                      >= 4.7   && < 5
                , transformers              >= 0.2   && < 0.6
                , monad-control             >= 1.0   && < 1.1
   exposed-modules: Control.Monad.Trans.Region
